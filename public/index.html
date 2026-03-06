@@ -3,34 +3,137 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UM6P Fitness Hub</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <title>UM6P Fit - API Tester</title>
+    <style>
+        body { font-family: sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .panel { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #333; font-size: 18px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        label { display: block; margin: 10px 0 5px; font-weight: bold; font-size: 14px; }
+        input { width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background: #007bff; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0056b3; }
+        pre { background: #2d2d2d; color: #00ff00; padding: 15px; border-radius: 4px; overflow-x: auto; max-height: 250px; font-size: 12px; }
+    </style>
 </head>
 <body>
-    <div class="glow-orb orb-1"></div>
-    <div class="glow-orb orb-2"></div>
-    
-    <header class="hero">
-        <h1 class="gradient-text">UM6P FIT</h1>
-        <p class="subtitle">Your ultimate database for optimizing performance.</p>
-    </header>
-    
-    <main class="container">
-        <div id="loader" class="loader">
-            <div class="spinner"></div>
-            <p>Gathering data...</p>
-        </div>
-        
-        <div id="error-message" class="error-message hidden">
-            Failed to load exercises. Please try again later.
-        </div>
-        
-        <div id="exercise-grid" class="exercise-grid hidden">
-            <!-- Exercise cards will be injected here -->
-        </div>
-    </main>
 
-    <script src="script.js"></script>
+    <h1>🚀 UM6P Fit API Tester</h1>
+    <div class="grid-container">
+
+        <div class="panel">
+            <h2>1. Fetch Exercises Database</h2>
+            <button onclick="fetchExercises()">Get Exercises (Limit 50)</button>
+            <pre id="exercises-output">Awaiting action...</pre>
+        </div>
+
+        <div class="panel">
+            <h2>2. Create a New User</h2>
+            <form id="user-form" onsubmit="createUser(event)">
+                <label>Name:</label> <input type="text" id="u-name" required placeholder="e.g. John Doe">
+                <label>Email:</label> <input type="email" id="u-email" required placeholder="john@example.com">
+                <div style="display: flex; gap: 10px;">
+                    <div style="flex: 1;"><label>Age:</label> <input type="number" id="u-age" required></div>
+                    <div style="flex: 1;"><label>Height (cm):</label> <input type="number" step="0.1" id="u-height" required></div>
+                    <div style="flex: 1;"><label>Weight (kg):</label> <input type="number" step="0.1" id="u-weight" required></div>
+                </div>
+                <button type="submit">Create User</button>
+            </form>
+            <pre id="user-output">Awaiting action...</pre>
+        </div>
+
+        <div class="panel">
+            <h2>3. Log a Workout</h2>
+            <form id="workout-form" onsubmit="createWorkout(event)">
+                <label>User ID:</label> <input type="number" id="w-userid" required placeholder="e.g. 1">
+                <label>Workout Name:</label> <input type="text" id="w-name" required placeholder="e.g. Monday Chest Day">
+                <label>Exercise ID:</label> <input type="text" id="w-exid" required placeholder="e.g. barbell_bench_press">
+                <div style="display: flex; gap: 10px;">
+                    <div style="flex: 1;"><label>Sets:</label> <input type="number" id="w-sets" required></div>
+                    <div style="flex: 1;"><label>Reps:</label> <input type="number" id="w-reps" required></div>
+                    <div style="flex: 1;"><label>Weight (kg):</label> <input type="number" step="0.1" id="w-weight" required></div>
+                </div>
+                <button type="submit">Log Workout</button>
+            </form>
+            <pre id="workout-output">Awaiting action...</pre>
+        </div>
+
+        <div class="panel">
+            <h2>4. Fetch User Workout History</h2>
+            <label>User ID:</label> 
+            <input type="number" id="history-userid" placeholder="Enter User ID (e.g. 1)" style="width: 50%;">
+            <button onclick="fetchHistory()">Get History</button>
+            <pre id="history-output">Awaiting action...</pre>
+        </div>
+
+    </div>
+
+    <script>
+        // Helper function to format JSON output
+        function displayJSON(elementId, data) {
+            document.getElementById(elementId).textContent = JSON.stringify(data, null, 2);
+        }
+
+        // 1. Fetch Exercises
+        async function fetchExercises() {
+            const res = await fetch('/api/exercises');
+            const data = await res.json();
+            displayJSON('exercises-output', data);
+        }
+
+        // 2. Create User
+        async function createUser(event) {
+            event.preventDefault(); // Prevent page reload
+            const payload = {
+                name: document.getElementById('u-name').value,
+                email: document.getElementById('u-email').value,
+                age: parseInt(document.getElementById('u-age').value),
+                height: parseFloat(document.getElementById('u-height').value),
+                weight: parseFloat(document.getElementById('u-weight').value)
+            };
+            const res = await fetch('/api/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            displayJSON('user-output', data);
+        }
+
+        // 3. Create Workout
+        async function createWorkout(event) {
+            event.preventDefault();
+            const payload = {
+                userId: parseInt(document.getElementById('w-userid').value),
+                name: document.getElementById('w-name').value,
+                exercises: [{
+                    exerciseId: document.getElementById('w-exid').value,
+                    sets: parseInt(document.getElementById('w-sets').value),
+                    reps: parseInt(document.getElementById('w-reps').value),
+                    weight: parseFloat(document.getElementById('w-weight').value)
+                }]
+            };
+            const res = await fetch('/api/workouts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            displayJSON('workout-output', data);
+        }
+
+        // 4. Fetch Workout History
+        async function fetchHistory() {
+            const userId = document.getElementById('history-userid').value;
+            if (!userId) {
+                alert("Please enter a User ID first!");
+                return;
+            }
+            const res = await fetch(`/api/users/${userId}/workouts`);
+            const data = await res.json();
+            displayJSON('history-output', data);
+        }
+    </script>
+
 </body>
 </html>
