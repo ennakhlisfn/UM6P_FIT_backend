@@ -7,13 +7,30 @@ import (
 	"log"
 	"net/http"
 	"os"
-
+    "time"
 	"github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-// Exercise matches the structure of the yuhonas/free-exercise-db and maps directly to PostgreSQL
+type Workout struct {
+	ID        uint              `gorm:"primaryKey" json:"id"`
+    UserID    uint              `json:"userId"`
+	Name      string            `json:"name"`
+	Date      time.Time         `json:"date"`
+	Exercises []WorkoutExercise `json:"exercises"`
+}
+
+type WorkoutExercise struct {
+	ID         uint     `gorm:"primaryKey" json:"id"`
+	WorkoutID  uint     `json:"workoutId"`
+	ExerciseID string   `json:"exerciseId"`
+	Sets       int      `json:"sets"`
+	Reps       int      `json:"reps"`
+	Weight     float64  `json:"weight"`     // In kg
+	Exercise   Exercise `gorm:"foreignKey:ExerciseID" json:"exercise"`
+}
+
 type Exercise struct {
 	ID               string         `gorm:"primaryKey" json:"id"`
 	Name             string         `json:"name"`
@@ -28,6 +45,18 @@ type Exercise struct {
 	Images           pq.StringArray `gorm:"type:text[]" json:"images"`
 }
 
+
+type User struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Name      string    `json:"name"`
+	Email     string    `gorm:"unique" json:"email"`
+	Age       int       `json:"age"`
+	Height    float64   `json:"height"`
+	Weight    float64   `json:"weight"`
+	CreatedAt time.Time `json:"createdAt"`
+	Workouts  []Workout `json:"workouts,omitempty"`
+}
+
 var db *gorm.DB
 
 func InitDB() {
@@ -40,8 +69,7 @@ func InitDB() {
 
 	fmt.Println("Connected to PostgreSQL successfully!")
 
-	// Auto-migrate the schema
-	err = db.AutoMigrate(&Exercise{})
+	err = db.AutoMigrate(&User{}, &Exercise{}, &Workout{}, &WorkoutExercise{})
 	if err != nil {
 		log.Fatalf("Failed to auto-migrate database schema: %v", err)
 	}
@@ -68,7 +96,6 @@ func SeedDBIfEmpty(filepath string) {
 			log.Fatalf("Failed to parse seed JSON: %v", err)
 		}
 
-		// Insert the exercises into the database in batches to avoid overwhelming PostgreSQL query limits
 		result := db.CreateInBatches(exercises, 100)
 		if result.Error != nil {
 			log.Fatalf("Failed to seed database: %v", result.Error)
@@ -79,37 +106,18 @@ func SeedDBIfEmpty(filepath string) {
 		fmt.Printf("Database already contains %d exercises. Skipping seed step.\n", count)
 	}
 }
-
 func main() {
-	// 1. Initialize DB and Seed Data
 	InitDB()
 	SeedDBIfEmpty("exercises.json")
 
-	// 2. Set up HTTP handlers
-	// Serve the exercises data dynamically from PostgreSQL
-	http.HandleFunc("/api/exercises", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
+	http.HandleFunc("/api/exercises", GetExercises)
+	http.HandleFunc("/api/workouts", CreateWorkout)
+	http.HandleFunc("/api/users", CreateUser)
+	http.HandleFunc("/api/users/{id}/workouts", GetUserWorkouts)
 
-		var exercises []Exercise
-		// Query the database, limiting to 50 for performance
-		result := db.Limit(50).Find(&exercises)
-		if result.Error != nil {
-			http.Error(w, "Failed to fetch exercises from database", http.StatusInternalServerError)
-			return
-		}
-
-		err := json.NewEncoder(w).Encode(exercises)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	})
-
-	// Serve the static frontend files from the "public" directory
 	fs := http.FileServer(http.Dir("./public"))
 	http.Handle("/", fs)
 
-	// 3. Start the server
 	port := ":8080"
 	fmt.Printf("Starting server on http://localhost%s\n", port)
 	if err := http.ListenAndServe(port, nil); err != nil {
