@@ -16,7 +16,7 @@ func GetExercises(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	var exercises []Exercise
-	result := db.Limit(50).Find(&exercises)
+	result := db.Limit(5).Find(&exercises)
 	if result.Error != nil {
 		http.Error(w, "Failed to fetch exercises", http.StatusInternalServerError)
 		return
@@ -105,4 +105,58 @@ func GetUserWorkouts(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(workouts)
+}
+
+func DeleteWorkout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	idStr := r.PathValue("id")
+	workoutID, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	result := db.Select("Exercises").Delete(&Workout{ID: uint(workoutID)})
+
+	if result.Error != nil {
+		http.Error(w, "Failed to fetch workouts", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func UpdateWorkout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	idStr := r.PathValue("id")
+	workoutID, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	var updateData Workout
+	if err := json.NewDecoder(r.Body).Decode(&updateData); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	var existingWorkout Workout
+	if result := db.First(&existingWorkout, workoutID); result.Error != nil {
+		http.Error(w, "Failed to fetch workouts", http.StatusInternalServerError)
+		return
+	}
+
+	db.Model(&existingWorkout).Updates(updateData)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(existingWorkout)
 }
