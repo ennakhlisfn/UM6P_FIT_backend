@@ -21,13 +21,16 @@ type Workout struct {
 	Exercises []WorkoutExercise `json:"exercises"`
 }
 
+type Set struct {
+	Reps   int     `json:"reps"`
+	Weight float64 `json:"weight"`
+}
+
 type WorkoutExercise struct {
 	ID         uint       `gorm:"primaryKey" json:"id"`
 	WorkoutID  uint       `json:"workoutId"`
 	ExerciseID string     `json:"exerciseId"`
-	Sets       int        `json:"sets"`
-	Reps       []int      `gorm:"serializer:json" json:"reps"`
-	Weight     []float64  `gorm:"serializer:json" json:"weight"`     // In kg
+    Sets       []Set      `gorm:"serializer:json" json:"sets"`
 	Exercise   Exercise   `gorm:"foreignKey:ExerciseID" json:"exercise"`
 }
 
@@ -50,6 +53,7 @@ type User struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	Name      string    `json:"name"`
 	Email     string    `gorm:"unique" json:"email"`
+    Password  string    `json:"-"`
 	Age       int       `json:"age"`
 	Height    float64   `json:"height"`
 	Weight    float64   `json:"weight"`
@@ -116,6 +120,7 @@ func main() {
 	http.HandleFunc("/api/users/{id}/workouts", GetUserWorkouts)
 	http.HandleFunc("DELETE /api/workouts/{id}", DeleteWorkout)
 	http.HandleFunc("PUT /api/workouts/{id}", UpdateWorkout)
+    http.HandleFunc("GET /api/users/{id}/exercises/{exId}/progress", GetExerciseProgress)
 
 	fs := http.FileServer(http.Dir("./public"))
 	http.Handle("/", fs)

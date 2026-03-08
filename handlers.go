@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 	"strconv"
+    "golang.org/x/crypto/bcrypt"
 )
 
 func GetExercises(w http.ResponseWriter, r *http.Request) {
@@ -25,33 +26,52 @@ func GetExercises(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(exercises)
 }
 
+
 func CreateUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var user User
-	err := json.NewDecoder(r.Body).Decode(&user)
-	if err != nil {
+	var input struct {
+		Name     string  `json:"name"`
+		Email    string  `json:"email"`
+		Password string  `json:"password"`
+		Age      int     `json:"age"`
+		Height   float64 `json:"height"`
+		Weight   float64 `json:"weight"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if user.CreatedAt.IsZero() {
-		user.CreatedAt = time.Now()
-	}
-
-	result := db.Create(&user)
-	if result.Error != nil {
-		http.Error(w,"Failed to create user (Email might already exist)", http.StatusInternalServerError)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), 14)
+	if err != nil {
+		http.Error(w, "Failed to encrypt password", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
+	newUser := User{
+		Name:     input.Name,
+		Email:    input.Email,
+		Password: string(hashedPassword),
+		Age:      input.Age,
+		Height:   input.Height,
+		Weight:   input.Weight,
+	}
+
+	if result := db.Create(&newUser); result.Error != nil {
+		http.Error(w, "Failed to create user (Email might already exist)", http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(newUser)
 }
+
 func CreateWorkout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -159,4 +179,60 @@ func UpdateWorkout(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(existingWorkout)
+}
+
+func calculateVolume(sets []Set) float64 {
+	var totalVolume float64
+	for _, s := range sets {
+		totalVolume += float64(s.Reps) * s.Weight
+	}
+	return totalVolume
+}
+
+func GetExerciseProgress(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userID, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+	exerciseID := r.PathValue("exId")
+
+	var workouts []Workout
+	result := db.Preload("Exercises", "exercise_id = ?", exerciseID).
+		Joins("JOIN workout_exercises ON workout_exercises.workout_id = workouts.id").
+		Where("workouts.user_id = ? AND workout_exercises.exercise_id = ?", userID, exerciseID).
+		Order("workouts.date ASC").
+		Find(&workouts)
+
+	if result.Error != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+
+	type DataPoint struct {
+		Date   string  `json:"date"`
+		Volume float64 `json:"volume"`
+	}
+
+	var progressChart []DataPoint
+
+	for _, workout := range workouts {
+		if len(workout.Exercises) > 0 {
+			ex := workout.Exercises[0]
+			vol := calculateVolume(ex.Sets)
+
+			progressChart = append(progressChart, DataPoint{
+				Date:   workout.Date.Format("2006-01-02"),
+				Volume: vol,
+			})
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(progressChart)
 }
