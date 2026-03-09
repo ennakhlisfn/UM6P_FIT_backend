@@ -236,3 +236,57 @@ func GetExerciseProgress(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(progressChart)
 }
+
+func GetWorkoutTemplates(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	userIDStr := r.URL.Query().Get("userId")
+
+	var templates []WorkoutTemplate
+
+	query := db.Preload("Exercises")
+
+	if userIDStr != "" {
+		userID, err := strconv.Atoi(userIDStr)
+		if err == nil {
+			query = query.Where("created_by = ? OR created_by = ?", 0, userID)
+		} else {
+			query = query.Where("created_by = ?", 0)
+		}
+	} else {
+		query = query.Where("created_by = ?", 0)
+	}
+
+	if result := query.Find(&templates); result.Error != nil {
+		http.Error(w, "Failed to fetch templates", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(templates)
+}
+
+func CreateWorkoutTemplate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var template WorkoutTemplate
+	if err := json.NewDecoder(r.Body).Decode(&template); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if result := db.Create(&template); result.Error != nil {
+		http.Error(w, "Failed to create workout template", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(template)
+}

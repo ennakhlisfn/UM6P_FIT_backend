@@ -7,59 +7,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-    "time"
-	"github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-type Workout struct {
-	ID        uint              `gorm:"primaryKey" json:"id"`
-    UserID    uint              `json:"userId"`
-	Name      string            `json:"name"`
-	Date      time.Time         `json:"date"`
-	Exercises []WorkoutExercise `json:"exercises"`
-}
-
-type Set struct {
-	Reps   int     `json:"reps"`
-	Weight float64 `json:"weight"`
-}
-
-type WorkoutExercise struct {
-	ID         uint       `gorm:"primaryKey" json:"id"`
-	WorkoutID  uint       `json:"workoutId"`
-	ExerciseID string     `json:"exerciseId"`
-    Sets       []Set      `gorm:"serializer:json" json:"sets"`
-	Exercise   Exercise   `gorm:"foreignKey:ExerciseID" json:"exercise"`
-}
-
-type Exercise struct {
-	ID               string         `gorm:"primaryKey" json:"id"`
-	Name             string         `json:"name"`
-	Force            string         `json:"force"`
-	Level            string         `json:"level"`
-	Mechanic         string         `json:"mechanic"`
-	Equipment        string         `json:"equipment"`
-	PrimaryMuscles   pq.StringArray `gorm:"type:text[]" json:"primaryMuscles"`
-	SecondaryMuscles pq.StringArray `gorm:"type:text[]" json:"secondaryMuscles"`
-	Instructions     pq.StringArray `gorm:"type:text[]" json:"instructions"`
-	Category         string         `json:"category"`
-	Images           pq.StringArray `gorm:"type:text[]" json:"images"`
-}
-
-
-type User struct {
-	ID        uint      `gorm:"primaryKey" json:"id"`
-	Name      string    `json:"name"`
-	Email     string    `gorm:"unique" json:"email"`
-    Password  string    `json:"-"`
-	Age       int       `json:"age"`
-	Height    float64   `json:"height"`
-	Weight    float64   `json:"weight"`
-	CreatedAt time.Time `json:"createdAt"`
-	Workouts  []Workout `json:"workouts,omitempty"`
-}
 
 var db *gorm.DB
 
@@ -73,7 +24,7 @@ func InitDB() {
 
 	fmt.Println("Connected to PostgreSQL successfully!")
 
-	err = db.AutoMigrate(&User{}, &Exercise{}, &Workout{}, &WorkoutExercise{})
+	err = db.AutoMigrate(&User{}, &Exercise{}, &Workout{}, &WorkoutExercise{}, &WorkoutTemplate{}, &TemplateExercise{})
 	if err != nil {
 		log.Fatalf("Failed to auto-migrate database schema: %v", err)
 	}
@@ -121,9 +72,8 @@ func main() {
 	http.HandleFunc("DELETE /api/workouts/{id}", DeleteWorkout)
 	http.HandleFunc("PUT /api/workouts/{id}", UpdateWorkout)
     http.HandleFunc("GET /api/users/{id}/exercises/{exId}/progress", GetExerciseProgress)
-
-	fs := http.FileServer(http.Dir("./public"))
-	http.Handle("/", fs)
+	http.HandleFunc("GET /api/workout-templates", GetWorkoutTemplates)
+	http.HandleFunc("POST /api/workout-templates", CreateWorkoutTemplate)
 
 	port := ":8080"
 	fmt.Printf("Starting server on http://localhost%s\n", port)
