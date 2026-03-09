@@ -290,3 +290,79 @@ func CreateWorkoutTemplate(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(template)
 }
+
+func UpdateWorkoutTemplate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	templateID := r.PathValue("id")
+	userIDStr := r.URL.Query().Get("userId")
+	if userIDStr == "" {
+		http.Error(w, "Unauthorized: userId query parameter is required", http.StatusUnauthorized)
+		return
+	}
+	userID, _ := strconv.Atoi(userIDStr)
+
+	var existingTemplate WorkoutTemplate
+	if result := db.First(&existingTemplate, templateID); result.Error != nil {
+		http.Error(w, "Template not found", http.StatusNotFound)
+		return
+	}
+
+	if existingTemplate.CreatedBy != uint(userID) {
+		http.Error(w, "Forbidden: You do not have permission to edit this template", http.StatusForbidden)
+		return
+	}
+
+	var input WorkoutTemplate
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	existingTemplate.Name = input.Name
+	existingTemplate.Type = input.Type
+	db.Save(&existingTemplate)
+
+	db.Where("template_id = ?", existingTemplate.ID).Delete(&TemplateExercise{})
+	for _, ex := range input.Exercises {
+		ex.TemplateID = existingTemplate.ID 
+		db.Create(&ex)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(existingTemplate)
+}
+
+func DeleteWorkoutTemplate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	templateID := r.PathValue("id")
+	userIDStr := r.URL.Query().Get("userId")
+	if userIDStr == "" {
+		http.Error(w, "Unauthorized: userId query parameter is required", http.StatusUnauthorized)
+		return
+	}
+	userID, _ := strconv.Atoi(userIDStr)
+
+	var template WorkoutTemplate
+	if result := db.First(&template, templateID); result.Error != nil {
+		http.Error(w, "Template not found", http.StatusNotFound)
+		return
+	}
+
+	if template.CreatedBy != uint(userID) || template.CreatedBy == 0 {
+		http.Error(w, "Forbidden: You can only delete your own custom templates", http.StatusForbidden)
+		return
+	}
+
+	db.Where("template_id = ?", template.ID).Delete(&TemplateExercise{})
+	db.Delete(&template)
+
+	w.WriteHeader(http.StatusNoContent)
+}

@@ -74,6 +74,8 @@ func main() {
     http.HandleFunc("GET /api/users/{id}/exercises/{exId}/progress", GetExerciseProgress)
 	http.HandleFunc("GET /api/workout-templates", GetWorkoutTemplates)
 	http.HandleFunc("POST /api/workout-templates", CreateWorkoutTemplate)
+	http.HandleFunc("PUT /api/workout-templates/{id}", UpdateWorkoutTemplate)
+	http.HandleFunc("DELETE /api/workout-templates/{id}", DeleteWorkoutTemplate)
 
 	port := ":8080"
 	fmt.Printf("Starting server on http://localhost%s\n", port)
