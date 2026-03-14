@@ -399,3 +399,46 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
 }
+
+func GetLeaderboard(w http.ResponseWriter, r *http.Request){
+    if r.Method != http.MethodGet {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    var users []User
+    if result := db.Find(&users); result.Error != nil {
+        http.Error(w, "Failed to fetch users", http.StatusInternalServerError)
+        return
+    }
+
+    var leaderboard []LeaderboardEntry
+    for _, user := range users {
+        var workouts []Workout
+        db.Where("user_id = ?", user.ID).Find(&workouts)
+
+        var totalVolume float64
+
+        for _, workout := range workouts {
+            var exercises []WorkoutExercise
+            db.Where("workout_id = ?", workout.ID).Find(&exercises)
+
+            for _, ex := range exercises {
+                for _, set := range ex.Sets {
+                    totalVolume += float64(set.Reps) * set.Weight
+                }
+            }
+        }
+
+        //if totalVolume > 0 {
+            leaderboard = append(leaderboard, LeaderboardEntry{
+                ID:             user.ID,
+                Name:           user.Name,
+                TotalVolume:    totalVolume,
+            })
+        //}
+    }
+
+    w.Header().Set("Content_Type", "application/json")
+    json.NewEncoder(w).Encode(leaderboard)
+}

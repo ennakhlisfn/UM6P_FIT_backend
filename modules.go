@@ -5,6 +5,12 @@ import (
 	"github.com/lib/pq"
 )
 
+type LeaderboardEntry struct {
+    ID          uint        `json:"id"`
+    Name        string      `json:"name"`
+    TotalVolume float64     `json:"totalVolume"`
+}
+
 type Workout struct {
 	ID        uint              `gorm:"primaryKey" json:"id"`
     UserID    uint              `json:"userId"`
