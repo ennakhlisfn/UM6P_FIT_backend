@@ -5,6 +5,29 @@ import (
 	"github.com/lib/pq"
 )
 
+type UserProgramProgress struct {
+    ID          uint    `gorm:"primaryKey" json:"id"`
+    UserID      uint    `json:"userId"`
+    ProgramID   uint    `json:"programId"`
+    CurrentDay  int     `json:"currentDay"`
+    IsActive    bool    `json:"isActive"`
+}
+
+type WorkoutProgram struct {
+    ID          uint            `gorm:"primaryKey" json:"id"`
+    Name        string          `json:"name"`
+    Description string          `json:"description"`
+    CreatedBy   uint            `json:"createdBy"`
+    Days        []ProgramDay    `gorm:"foreignKey:ProgramID" json"days"`
+}
+
+type ProgramDay struct {
+    ID                  uint    `gorm:"primaryKey" json:"id"`
+    ProgramID           uint    `json:"programId"`
+    DayNumber           int     `json:"dayNumber"`
+    WorkoutTemplateID   uint    `json:"workoutTemplateId"`
+}
+
 type LeaderboardEntry struct {
     ID          uint        `json:"id"`
     Name        string      `json:"name"`

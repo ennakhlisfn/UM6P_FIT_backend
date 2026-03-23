@@ -24,7 +24,7 @@ func InitDB() {
 
 	fmt.Println("Connected to PostgreSQL successfully!")
 
-	err = db.AutoMigrate(&User{}, &Exercise{}, &Workout{}, &WorkoutExercise{}, &WorkoutTemplate{}, &TemplateExercise{})
+	err = db.AutoMigrate(&User{}, &Exercise{}, &Workout{}, &WorkoutExercise{}, &WorkoutTemplate{}, &TemplateExercise{}, &WorkoutProgram{}, &ProgramDay{}, &UserProgramProgress{})
 	if err != nil {
 		log.Fatalf("Failed to auto-migrate database schema: %v", err)
 	}
@@ -78,6 +78,10 @@ func main() {
 	http.HandleFunc("DELETE /api/workout-templates/{id}", DeleteWorkoutTemplate)
 	http.HandleFunc("POST /api/login", LoginUser)
     http.HandleFunc("GET /api/leaderboard", GetLeaderboard)
+    http.HandleFunc("POST /api/programs", CreateWorkoutProgram)
+	http.HandleFunc("GET /api/programs", GetWorkoutPrograms)
+	http.HandleFunc("POST /api/programs/{id}/start", StartProgram)
+	http.HandleFunc("POST /api/programs/advance", AdvanceProgramDay)
 
 	port := ":8080"
 	fmt.Printf("Starting server on http://localhost%s\n", port)

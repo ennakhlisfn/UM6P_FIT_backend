@@ -442,3 +442,131 @@ func GetLeaderboard(w http.ResponseWriter, r *http.Request){
     w.Header().Set("Content_Type", "application/json")
     json.NewEncoder(w).Encode(leaderboard)
 }
+
+func CreateWorkoutProgram(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    var program WorkoutProgram
+    if err := json.NewDecoder(r.Body).Decode(&program); err != nil {
+        http.Error(w, "Invalid request body", http.StatusBadRequest)
+        return
+    }
+
+    if result := db.Create(&program); result.Error != nil {
+        http.Error(w, "Failed to create workout program", http.StatusInternalServerError)
+        return
+    }
+
+    w.WriteHeader(http.StatusCreated)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(program)
+}
+
+func GetWorkoutPrograms(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodGet {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    userIDStr := r.URL.Query().Get("userId")
+    var programs []WorkoutProgram
+
+    query := db.Preload("Days")
+
+    if userIDStr != "" {
+        userID, err := strconv.Atoi(userIDStr)
+        if err == nil {
+            query = query.Where("created_by = ? OR created_by =  ?", 0, userID)
+        } else {
+            query = query.Where("created_by = ?", 0)
+        }
+    } else {
+        query = query.Where("created_by = ?", 0)
+    }
+
+    if result := query.Find(&programs); result.Error != nil {
+        http.Error(w, "Failed to fetch programs", http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(programs)
+}
+
+func StartProgram(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    programIDStr := r.PathValue("id")
+    userIDStr := r.URL.Query().Get("userId")
+
+    if userIDStr == "" {
+        http.Error(w, "Unauthorized: userId is required", http.StatusUnauthorized)
+        return
+    }
+
+    programID, _ := strconv.Atoi(programIDStr)
+    userID, _ := strconv.Atoi(userIDStr)
+
+    db.Model(&UserProgramProgress{}).Where("user_id = ?", userID).Update("is_active", false)
+
+    progress := UserProgramProgress {
+        UserID:         uint(userID),
+        ProgramID:      uint(programID),
+        CurrentDay:     1,
+        IsActive:       true,
+    }
+
+    if result := db.Create(&progress); result.Error != nil {
+        http.Error(w, "Failed to start program", http.StatusInternalServerError)
+        return
+    }
+
+    w.WriteHeader(http.StatusCreated)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(progress)
+}
+
+func AdvanceProgramDay(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodPost {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+    userIDStr := r.URL.Query().Get("userId")
+    if userIDStr == "" {
+        http.Error(w, "Unauthorized: userId is required",  http.StatusUnauthorized)
+        return
+    }
+
+    userID, _ := strconv.Atoi(userIDStr)
+
+    var progress UserProgramProgress
+    if result := db.Where("user_id = ? AND is_active = ?", userID, true).First(&progress); result.Error != nil {
+        http.Error(w, "No active program found for this user", http.StatusNotFound)
+        return
+    }
+
+    var totalDays int64
+    db.Model(&ProgramDay{}).Where("program_id = ?", progress.ProgramID).Count(&totalDays)
+
+    if int64(progress.CurrentDay) >= totalDays {
+        progress.IsActive = false
+    } else {
+        progress.CurrentDay += 1
+    }
+
+    if result := db.Save(&progress); result.Error != nil {
+        http.Error(w, "Failed to update progress", http.StatusInternalServerError)
+        return
+    }
+
+    w.WriteHeader(http.StatusOK)
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(progress)
+}
