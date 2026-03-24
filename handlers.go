@@ -570,3 +570,28 @@ func AdvanceProgramDay(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(progress)
 }
+
+func GetProgramHistory(w http.ResponseWriter, r *http.Request) {
+    if r.Method != http.MethodGet {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
+	idStr := r.PathValue("id")
+	userID, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	var programs []UserProgramProgress
+
+	result := db.Preload("Program").Where("user_id = ? AND is_active = ?", userID, false).Find(&programs)
+	if result.Error != nil {
+		http.Error(w, "Failed to fetch workouts", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(programs)
+}

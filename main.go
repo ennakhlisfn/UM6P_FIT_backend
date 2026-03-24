@@ -82,6 +82,7 @@ func main() {
 	http.HandleFunc("GET /api/programs", GetWorkoutPrograms)
 	http.HandleFunc("POST /api/programs/{id}/start", StartProgram)
 	http.HandleFunc("POST /api/programs/advance", AdvanceProgramDay)
+	http.HandleFunc("GET /api/users/{id}/programs-history", GetProgramHistory)
 
 	port := ":8080"
 	fmt.Printf("Starting server on http://localhost%s\n", port)

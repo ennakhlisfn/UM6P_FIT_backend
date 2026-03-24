@@ -6,11 +6,12 @@ import (
 )
 
 type UserProgramProgress struct {
-    ID          uint    `gorm:"primaryKey" json:"id"`
-    UserID      uint    `json:"userId"`
-    ProgramID   uint    `json:"programId"`
-    CurrentDay  int     `json:"currentDay"`
-    IsActive    bool    `json:"isActive"`
+    ID          uint    		`gorm:"primaryKey" json:"id"`
+    UserID      uint    		`json:"userId"`
+    ProgramID   uint    		`json:"programId"`
+	Program		WorkoutProgram	`grom:"foreignKey:ProgramID" json:"program"`
+    CurrentDay  int     		`json:"currentDay"`
+    IsActive    bool    		`json:"isActive"`
 }
 
 type WorkoutProgram struct {
