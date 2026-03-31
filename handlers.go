@@ -5,8 +5,12 @@ import (
 	"net/http"
 	"time"
 	"strconv"
+    "github.com/golang-jwt/jwt/v5"
     "golang.org/x/crypto/bcrypt"
 )
+
+// TODO: move it to .env
+var jwtKey = []byte("my_super_secret_um6p_fit_key")
 
 func GetExercises(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -395,9 +399,32 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+    expirationTime := time.Now().Add(24 * time.Hour)
+
+    claims := jwt.MapClaims{
+        "userId":   user.ID,
+        "exp":      expirationTime.Unix(),
+    }
+
+    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+    tokenString, err := token.SignedString(jwtKey)
+    if err != nil {
+        http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+        return
+    }
+
+    response := struct {
+		Token string `json:"token"`
+		User  User   `json:"user"`
+	}{
+		Token: tokenString,
+		User:  user,
+	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	json.NewEncoder(w).Encode(response)
 }
 
 func GetLeaderboard(w http.ResponseWriter, r *http.Request){
