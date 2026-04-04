@@ -3,14 +3,42 @@ package main
 import (
 	"encoding/json"
 	"net/http"
-	"time"
 	"strconv"
-    "github.com/golang-jwt/jwt/v5"
-    "golang.org/x/crypto/bcrypt"
+	"strings"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // TODO: move it to .env
 var jwtKey = []byte("my_super_secret_um6p_fit_key")
+
+func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+			http.Error(w, "Unauthorized: missing token", http.StatusUnauthorized)
+			return
+		}
+
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, http.ErrNotSupported
+			}
+			return jwtKey, nil
+		})
+
+		if err != nil || !token.Valid {
+			http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}
+}
 
 func GetExercises(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -29,7 +57,6 @@ func GetExercises(w http.ResponseWriter, r *http.Request) {
 
 	json.NewEncoder(w).Encode(exercises)
 }
-
 
 func CreateUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -104,7 +131,6 @@ func CreateWorkout(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(workout)
 }
 
-
 func GetUserWorkouts(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -120,7 +146,7 @@ func GetUserWorkouts(w http.ResponseWriter, r *http.Request) {
 
 	var workouts []Workout
 
-	result := db.Preload("Exercises").Preload("Exercises.Exercise").Where("user_id = ?", userID).Find(&workouts)
+	result := db.Preload("Exercises").Preload("Exercises.Exercise").Preload("Exercises.Sets").Where("user_id = ?", userID).Find(&workouts)
 
 	if result.Error != nil {
 		http.Error(w, "Failed to fetch workouts", http.StatusInternalServerError)
@@ -332,7 +358,7 @@ func UpdateWorkoutTemplate(w http.ResponseWriter, r *http.Request) {
 
 	db.Where("template_id = ?", existingTemplate.ID).Delete(&TemplateExercise{})
 	for _, ex := range input.Exercises {
-		ex.TemplateID = existingTemplate.ID 
+		ex.TemplateID = existingTemplate.ID
 		db.Create(&ex)
 	}
 
@@ -399,22 +425,22 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-    expirationTime := time.Now().Add(24 * time.Hour)
+	expirationTime := time.Now().Add(24 * time.Hour)
 
-    claims := jwt.MapClaims{
-        "userId":   user.ID,
-        "exp":      expirationTime.Unix(),
-    }
+	claims := jwt.MapClaims{
+		"userId": user.ID,
+		"exp":    expirationTime.Unix(),
+	}
 
-    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-    tokenString, err := token.SignedString(jwtKey)
-    if err != nil {
-        http.Error(w, "Failed to generate token", http.StatusInternalServerError)
-        return
-    }
+	tokenString, err := token.SignedString(jwtKey)
+	if err != nil {
+		http.Error(w, "Failed to generate token", http.StatusInternalServerError)
+		return
+	}
 
-    response := struct {
+	response := struct {
 		Token string `json:"token"`
 		User  User   `json:"user"`
 	}{
@@ -427,182 +453,165 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func GetLeaderboard(w http.ResponseWriter, r *http.Request){
-    if r.Method != http.MethodGet {
-        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-        return
-    }
+func GetLeaderboard(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-    var users []User
-    if result := db.Find(&users); result.Error != nil {
-        http.Error(w, "Failed to fetch users", http.StatusInternalServerError)
-        return
-    }
+	var leaderboard []LeaderboardEntry
 
-    var leaderboard []LeaderboardEntry
-    for _, user := range users {
-        var workouts []Workout
-        db.Where("user_id = ?", user.ID).Find(&workouts)
+	err := db.Table("users").
+		Select("users.id, users.name, COALESCE(SUM(sets.reps * sets.weight), 0) as total_volume").
+		Joins("LEFT JOIN workouts ON workouts.user_id = users.id").
+		Joins("LEFT JOIN workout_exercises ON workout_exercises.workout_id = workouts.id").
+		Joins("LEFT JOIN sets ON sets.workout_exercise_id = workout_exercises.id").
+		Group("users.id, users.name").
+		Order("total_volume DESC").
+		Scan(&leaderboard).Error
 
-        var totalVolume float64
+	if err != nil {
+		http.Error(w, "Failed to fetch leaderboard", http.StatusInternalServerError)
+		return
+	}
 
-        for _, workout := range workouts {
-            var exercises []WorkoutExercise
-            db.Where("workout_id = ?", workout.ID).Find(&exercises)
-
-            for _, ex := range exercises {
-                for _, set := range ex.Sets {
-                    totalVolume += float64(set.Reps) * set.Weight
-                }
-            }
-        }
-
-        //if totalVolume > 0 {
-            leaderboard = append(leaderboard, LeaderboardEntry{
-                ID:             user.ID,
-                Name:           user.Name,
-                TotalVolume:    totalVolume,
-            })
-        //}
-    }
-
-    w.Header().Set("Content_Type", "application/json")
-    json.NewEncoder(w).Encode(leaderboard)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(leaderboard)
 }
 
 func CreateWorkoutProgram(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodPost {
-        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-        return
-    }
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-    var program WorkoutProgram
-    if err := json.NewDecoder(r.Body).Decode(&program); err != nil {
-        http.Error(w, "Invalid request body", http.StatusBadRequest)
-        return
-    }
+	var program WorkoutProgram
+	if err := json.NewDecoder(r.Body).Decode(&program); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
 
-    if result := db.Create(&program); result.Error != nil {
-        http.Error(w, "Failed to create workout program", http.StatusInternalServerError)
-        return
-    }
+	if result := db.Create(&program); result.Error != nil {
+		http.Error(w, "Failed to create workout program", http.StatusInternalServerError)
+		return
+	}
 
-    w.WriteHeader(http.StatusCreated)
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(program)
+	w.WriteHeader(http.StatusCreated)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(program)
 }
 
 func GetWorkoutPrograms(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodGet {
-        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-        return
-    }
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-    userIDStr := r.URL.Query().Get("userId")
-    var programs []WorkoutProgram
+	userIDStr := r.URL.Query().Get("userId")
+	var programs []WorkoutProgram
 
-    query := db.Preload("Days")
+	query := db.Preload("Days")
 
-    if userIDStr != "" {
-        userID, err := strconv.Atoi(userIDStr)
-        if err == nil {
-            query = query.Where("created_by = ? OR created_by =  ?", 0, userID)
-        } else {
-            query = query.Where("created_by = ?", 0)
-        }
-    } else {
-        query = query.Where("created_by = ?", 0)
-    }
+	if userIDStr != "" {
+		userID, err := strconv.Atoi(userIDStr)
+		if err == nil {
+			query = query.Where("created_by = ? OR created_by =  ?", 0, userID)
+		} else {
+			query = query.Where("created_by = ?", 0)
+		}
+	} else {
+		query = query.Where("created_by = ?", 0)
+	}
 
-    if result := query.Find(&programs); result.Error != nil {
-        http.Error(w, "Failed to fetch programs", http.StatusInternalServerError)
-        return
-    }
+	if result := query.Find(&programs); result.Error != nil {
+		http.Error(w, "Failed to fetch programs", http.StatusInternalServerError)
+		return
+	}
 
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(programs)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(programs)
 }
 
 func StartProgram(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodPost {
-        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-        return
-    }
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-    programIDStr := r.PathValue("id")
-    userIDStr := r.URL.Query().Get("userId")
+	programIDStr := r.PathValue("id")
+	userIDStr := r.URL.Query().Get("userId")
 
-    if userIDStr == "" {
-        http.Error(w, "Unauthorized: userId is required", http.StatusUnauthorized)
-        return
-    }
+	if userIDStr == "" {
+		http.Error(w, "Unauthorized: userId is required", http.StatusUnauthorized)
+		return
+	}
 
-    programID, _ := strconv.Atoi(programIDStr)
-    userID, _ := strconv.Atoi(userIDStr)
+	programID, _ := strconv.Atoi(programIDStr)
+	userID, _ := strconv.Atoi(userIDStr)
 
-    db.Model(&UserProgramProgress{}).Where("user_id = ?", userID).Update("is_active", false)
+	db.Model(&UserProgramProgress{}).Where("user_id = ?", userID).Update("is_active", false)
 
-    progress := UserProgramProgress {
-        UserID:         uint(userID),
-        ProgramID:      uint(programID),
-        CurrentDay:     1,
-        IsActive:       true,
-    }
+	progress := UserProgramProgress{
+		UserID:     uint(userID),
+		ProgramID:  uint(programID),
+		CurrentDay: 1,
+		IsActive:   true,
+	}
 
-    if result := db.Create(&progress); result.Error != nil {
-        http.Error(w, "Failed to start program", http.StatusInternalServerError)
-        return
-    }
+	if result := db.Create(&progress); result.Error != nil {
+		http.Error(w, "Failed to start program", http.StatusInternalServerError)
+		return
+	}
 
-    w.WriteHeader(http.StatusCreated)
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(progress)
+	w.WriteHeader(http.StatusCreated)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(progress)
 }
 
 func AdvanceProgramDay(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodPost {
-        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-        return
-    }
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
-    userIDStr := r.URL.Query().Get("userId")
-    if userIDStr == "" {
-        http.Error(w, "Unauthorized: userId is required",  http.StatusUnauthorized)
-        return
-    }
+	userIDStr := r.URL.Query().Get("userId")
+	if userIDStr == "" {
+		http.Error(w, "Unauthorized: userId is required", http.StatusUnauthorized)
+		return
+	}
 
-    userID, _ := strconv.Atoi(userIDStr)
+	userID, _ := strconv.Atoi(userIDStr)
 
-    var progress UserProgramProgress
-    if result := db.Where("user_id = ? AND is_active = ?", userID, true).First(&progress); result.Error != nil {
-        http.Error(w, "No active program found for this user", http.StatusNotFound)
-        return
-    }
+	var progress UserProgramProgress
+	if result := db.Where("user_id = ? AND is_active = ?", userID, true).First(&progress); result.Error != nil {
+		http.Error(w, "No active program found for this user", http.StatusNotFound)
+		return
+	}
 
-    var totalDays int64
-    db.Model(&ProgramDay{}).Where("program_id = ?", progress.ProgramID).Count(&totalDays)
+	var totalDays int64
+	db.Model(&ProgramDay{}).Where("program_id = ?", progress.ProgramID).Count(&totalDays)
 
-    if int64(progress.CurrentDay) >= totalDays {
-        progress.IsActive = false
-    } else {
-        progress.CurrentDay += 1
-    }
+	if int64(progress.CurrentDay) >= totalDays {
+		progress.IsActive = false
+	} else {
+		progress.CurrentDay += 1
+	}
 
-    if result := db.Save(&progress); result.Error != nil {
-        http.Error(w, "Failed to update progress", http.StatusInternalServerError)
-        return
-    }
+	if result := db.Save(&progress); result.Error != nil {
+		http.Error(w, "Failed to update progress", http.StatusInternalServerError)
+		return
+	}
 
-    w.WriteHeader(http.StatusOK)
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(progress)
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(progress)
 }
 
 func GetProgramHistory(w http.ResponseWriter, r *http.Request) {
-    if r.Method != http.MethodGet {
-        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-        return
-    }
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
 	idStr := r.PathValue("id")
 	userID, err := strconv.Atoi(idStr)
@@ -621,4 +630,27 @@ func GetProgramHistory(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(programs)
+}
+
+func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "Unauthorized: tokens missing", http.StatusUnauthorized)
+			return
+		}
+
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			return jwtKey, nil
+		})
+
+		if err != nil || !token.Valid {
+			http.Error(w, "Unauthorized: Invalid or expired tokens", http.StatusUnauthorized)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}
 }

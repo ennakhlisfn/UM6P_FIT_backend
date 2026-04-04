@@ -44,15 +44,17 @@ type Workout struct {
 }
 
 type Set struct {
-	Reps   int     `json:"reps"`
-	Weight float64 `json:"weight"`
+	ID                uint    `gorm:"primaryKey" json:"id"`
+	WorkoutExerciseID uint    `json:"workoutExerciseId"`
+	Reps              int     `json:"reps"`
+	Weight            float64 `json:"weight"`
 }
 
 type WorkoutExercise struct {
 	ID         uint       `gorm:"primaryKey" json:"id"`
 	WorkoutID  uint       `json:"workoutId"`
 	ExerciseID string     `json:"exerciseId"`
-    Sets       []Set      `gorm:"serializer:json" json:"sets"`
+	Sets       []Set      `gorm:"foreignKey:WorkoutExerciseID" json:"sets"`
 	Exercise   Exercise   `gorm:"foreignKey:ExerciseID" json:"exercise"`
 }
 

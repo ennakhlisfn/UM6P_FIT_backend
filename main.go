@@ -24,7 +24,7 @@ func InitDB() {
 
 	fmt.Println("Connected to PostgreSQL successfully!")
 
-	err = db.AutoMigrate(&User{}, &Exercise{}, &Workout{}, &WorkoutExercise{}, &WorkoutTemplate{}, &TemplateExercise{}, &WorkoutProgram{}, &ProgramDay{}, &UserProgramProgress{})
+	err = db.AutoMigrate(&User{}, &Exercise{}, &Workout{}, &Set{}, &WorkoutExercise{}, &WorkoutTemplate{}, &TemplateExercise{}, &WorkoutProgram{}, &ProgramDay{}, &UserProgramProgress{})
 	if err != nil {
 		log.Fatalf("Failed to auto-migrate database schema: %v", err)
 	}
@@ -66,22 +66,22 @@ func main() {
 	SeedDBIfEmpty("exercises.json")
 
 	http.HandleFunc("/api/exercises", GetExercises)
-	http.HandleFunc("/api/workouts", CreateWorkout)
+	http.HandleFunc("/api/workouts", AuthMiddleware(CreateWorkout))
 	http.HandleFunc("/api/users", CreateUser)
-	http.HandleFunc("/api/users/{id}/workouts", GetUserWorkouts)
-	http.HandleFunc("DELETE /api/workouts/{id}", DeleteWorkout)
-	http.HandleFunc("PUT /api/workouts/{id}", UpdateWorkout)
-    http.HandleFunc("GET /api/users/{id}/exercises/{exId}/progress", GetExerciseProgress)
+	http.HandleFunc("/api/users/{id}/workouts", AuthMiddleware(GetUserWorkouts))
+	http.HandleFunc("DELETE /api/workouts/{id}", AuthMiddleware(DeleteWorkout))
+	http.HandleFunc("PUT /api/workouts/{id}", AuthMiddleware(UpdateWorkout))
+	http.HandleFunc("GET /api/users/{id}/exercises/{exId}/progress", AuthMiddleware(GetExerciseProgress))
 	http.HandleFunc("GET /api/workout-templates", GetWorkoutTemplates)
-	http.HandleFunc("POST /api/workout-templates", CreateWorkoutTemplate)
-	http.HandleFunc("PUT /api/workout-templates/{id}", UpdateWorkoutTemplate)
-	http.HandleFunc("DELETE /api/workout-templates/{id}", DeleteWorkoutTemplate)
+	http.HandleFunc("POST /api/workout-templates", AuthMiddleware(CreateWorkoutTemplate))
+	http.HandleFunc("PUT /api/workout-templates/{id}", AuthMiddleware(UpdateWorkoutTemplate))
+	http.HandleFunc("DELETE /api/workout-templates/{id}", AuthMiddleware(DeleteWorkoutTemplate))
 	http.HandleFunc("POST /api/login", LoginUser)
-    http.HandleFunc("GET /api/leaderboard", GetLeaderboard)
-    http.HandleFunc("POST /api/programs", CreateWorkoutProgram)
+	http.HandleFunc("GET /api/leaderboard", GetLeaderboard)
+	http.HandleFunc("POST /api/programs", AuthMiddleware(CreateWorkoutProgram))
 	http.HandleFunc("GET /api/programs", GetWorkoutPrograms)
-	http.HandleFunc("POST /api/programs/{id}/start", StartProgram)
-	http.HandleFunc("POST /api/programs/advance", AdvanceProgramDay)
+	http.HandleFunc("POST /api/programs/{id}/start", AuthMiddleware(StartProgram))
+	http.HandleFunc("POST /api/programs/advance", AuthMiddleware(AdvanceProgramDay))
 	http.HandleFunc("GET /api/users/{id}/programs-history", GetProgramHistory)
 
 	port := ":8080"
