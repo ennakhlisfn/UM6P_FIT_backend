@@ -3,14 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 )
-
 
 var db *gorm.DB
 
@@ -65,6 +64,9 @@ func main() {
 	InitDB()
 	SeedDBIfEmpty("exercises.json")
 
+	// Serve static files from the 'public' directory
+	http.Handle("/", http.FileServer(http.Dir("./public")))
+
 	http.HandleFunc("/api/exercises", GetExercises)
 	http.HandleFunc("/api/workouts", AuthMiddleware(CreateWorkout))
 	http.HandleFunc("/api/users", CreateUser)
@@ -80,6 +82,8 @@ func main() {
 	http.HandleFunc("GET /api/leaderboard", GetLeaderboard)
 	http.HandleFunc("POST /api/programs", AuthMiddleware(CreateWorkoutProgram))
 	http.HandleFunc("GET /api/programs", GetWorkoutPrograms)
+	http.HandleFunc("PUT /api/programs/{id}", AuthMiddleware(UpdateWorkoutProgram))
+	http.HandleFunc("DELETE /api/programs/{id}", AuthMiddleware(DeleteWorkoutProgram))
 	http.HandleFunc("POST /api/programs/{id}/start", AuthMiddleware(StartProgram))
 	http.HandleFunc("POST /api/programs/advance", AuthMiddleware(AdvanceProgramDay))
 	http.HandleFunc("GET /api/users/{id}/programs-history", GetProgramHistory)

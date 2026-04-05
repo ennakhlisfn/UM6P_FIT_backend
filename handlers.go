@@ -146,7 +146,28 @@ func GetUserWorkouts(w http.ResponseWriter, r *http.Request) {
 
 	var workouts []Workout
 
-	result := db.Preload("Exercises").Preload("Exercises.Exercise").Preload("Exercises.Sets").Where("user_id = ?", userID).Find(&workouts)
+	query := db.Preload("Exercises").Preload("Exercises.Exercise").Preload("Exercises.Sets").Where("user_id = ?", userID)
+
+	period := r.URL.Query().Get("period")
+	if period != "" {
+		now := time.Now()
+		var startDate time.Time
+		switch period {
+		case "week":
+			startDate = now.AddDate(0, 0, -7)
+		case "month":
+			startDate = now.AddDate(0, -1, 0)
+		case "year":
+			startDate = now.AddDate(-1, 0, 0)
+		}
+		if !startDate.IsZero() {
+			query = query.Where("date >= ?", startDate)
+		}
+	}
+
+	query = query.Order("date DESC")
+
+	result := query.Find(&workouts)
 
 	if result.Error != nil {
 		http.Error(w, "Failed to fetch workouts", http.StatusInternalServerError)
@@ -233,11 +254,29 @@ func GetExerciseProgress(w http.ResponseWriter, r *http.Request) {
 	exerciseID := r.PathValue("exId")
 
 	var workouts []Workout
-	result := db.Preload("Exercises", "exercise_id = ?", exerciseID).
+	query := db.Preload("Exercises", "exercise_id = ?", exerciseID).
+		Preload("Exercises.Sets").
 		Joins("JOIN workout_exercises ON workout_exercises.workout_id = workouts.id").
-		Where("workouts.user_id = ? AND workout_exercises.exercise_id = ?", userID, exerciseID).
-		Order("workouts.date ASC").
-		Find(&workouts)
+		Where("workouts.user_id = ? AND workout_exercises.exercise_id = ?", userID, exerciseID)
+
+	period := r.URL.Query().Get("period")
+	if period != "" {
+		now := time.Now()
+		var startDate time.Time
+		switch period {
+		case "week":
+			startDate = now.AddDate(0, 0, -7)
+		case "month":
+			startDate = now.AddDate(0, -1, 0)
+		case "year":
+			startDate = now.AddDate(-1, 0, 0)
+		}
+		if !startDate.IsZero() {
+			query = query.Where("workouts.date >= ?", startDate)
+		}
+	}
+
+	result := query.Order("workouts.date ASC").Find(&workouts)
 
 	if result.Error != nil {
 		http.Error(w, "Database error", http.StatusInternalServerError)
@@ -530,6 +569,86 @@ func GetWorkoutPrograms(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(programs)
+}
+
+func UpdateWorkoutProgram(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	programID := r.PathValue("id")
+	userIDStr := r.URL.Query().Get("userId")
+	if userIDStr == "" {
+		http.Error(w, "Unauthorized: userId query parameter is required", http.StatusUnauthorized)
+		return
+	}
+	userID, _ := strconv.Atoi(userIDStr)
+
+	var existingProgram WorkoutProgram
+	if result := db.First(&existingProgram, programID); result.Error != nil {
+		http.Error(w, "Program not found", http.StatusNotFound)
+		return
+	}
+
+	if existingProgram.CreatedBy != uint(userID) {
+		http.Error(w, "Forbidden: You do not have permission to edit this program", http.StatusForbidden)
+		return
+	}
+
+	var input WorkoutProgram
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	existingProgram.Name = input.Name
+	existingProgram.Description = input.Description
+	db.Save(&existingProgram)
+
+	db.Where("program_id = ?", existingProgram.ID).Delete(&ProgramDay{})
+	for _, day := range input.Days {
+		day.ProgramID = existingProgram.ID
+		db.Create(&day)
+	}
+
+	// Reload program from DB to fetch the newly created days along with their IDs
+	db.Preload("Days").First(&existingProgram, existingProgram.ID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(existingProgram)
+}
+
+func DeleteWorkoutProgram(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	programID := r.PathValue("id")
+	userIDStr := r.URL.Query().Get("userId")
+	if userIDStr == "" {
+		http.Error(w, "Unauthorized: userId query parameter is required", http.StatusUnauthorized)
+		return
+	}
+	userID, _ := strconv.Atoi(userIDStr)
+
+	var program WorkoutProgram
+	if result := db.First(&program, programID); result.Error != nil {
+		http.Error(w, "Program not found", http.StatusNotFound)
+		return
+	}
+
+	if program.CreatedBy != uint(userID) || program.CreatedBy == 0 {
+		http.Error(w, "Forbidden: You can only delete your own custom programs", http.StatusForbidden)
+		return
+	}
+
+	db.Where("program_id = ?", program.ID).Delete(&ProgramDay{})
+	db.Where("program_id = ?", program.ID).Delete(&UserProgramProgress{})
+	db.Delete(&program)
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func StartProgram(w http.ResponseWriter, r *http.Request) {

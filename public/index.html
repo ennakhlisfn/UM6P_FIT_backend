@@ -23,6 +23,10 @@
 <body>
 
     <h1>🚀 UM6P Fit API Tester (Full CRUD & Arrays)</h1>
+    <div style="background: #e9ecef; padding: 15px; margin-bottom: 20px; border-radius: 8px;">
+        <label style="display:inline;">Auth Token (Required for protected endpoints):</label>
+        <input type="text" id="global-token" placeholder="Bearer <token>" style="width: 50%; display:inline;">
+    </div>
     <div class="grid-container">
 
         <div class="panel">
@@ -42,9 +46,19 @@
                     <div style="flex: 1;"><label>Height (cm):</label> <input type="number" step="0.1" id="u-height" required></div>
                     <div style="flex: 1;"><label>Weight (kg):</label> <input type="number" step="0.1" id="u-weight" required></div>
                 </div>
-                <button type="submit">Create User</button>
+                <button type="submit">Create User & Login</button>
             </form>
             <pre id="user-output">Awaiting action...</pre>
+        </div>
+
+        <div class="panel" style="border: 2px solid #ffc107;">
+            <h2>🔐 Login (Authenticate)</h2>
+            <form id="login-form" onsubmit="loginUser(event)">
+                <label>Email:</label> <input type="email" id="l-email" required placeholder="john@example.com">
+                <label>Password:</label> <input type="password" id="l-password" required placeholder="SuperSecret123!">
+                <button type="submit" class="btn-warning">Login</button>
+            </form>
+            <pre id="login-output">Awaiting login...</pre>
         </div>
 
         <div class="panel">
@@ -64,11 +78,35 @@
         </div>
 
         <div class="panel">
-            <h2>4. Fetch User Workout History (Read)</h2>
+            <h2>4. Fetch Complete Workout History</h2>
             <label>User ID:</label> 
-            <input type="number" id="history-userid" placeholder="Enter User ID (e.g. 1)" style="width: 50%;">
+            <input type="number" id="history-userid" placeholder="Enter User ID (e.g. 1)">
+            <label>Period:</label>
+            <select id="history-period" style="margin-bottom: 10px;">
+                <option value="all">All Time</option>
+                <option value="week">Last 7 Days</option>
+                <option value="month">Last 30 Days</option>
+                <option value="year">Last Year</option>
+            </select>
             <button onclick="fetchHistory()">Get History</button>
             <pre id="history-output">Awaiting action...</pre>
+        </div>
+
+        <div class="panel" style="border: 2px solid #007bff;">
+            <h2>📈 4.5 Fetch Specific Exercise Progress</h2>
+            <label>User ID:</label> 
+            <input type="number" id="prog-userid" placeholder="Enter User ID (e.g. 1)">
+            <label>Exercise ID:</label>
+            <input type="text" id="prog-exid" placeholder="e.g. 3_4_Sit-Up" required>
+            <label>Period:</label>
+            <select id="prog-period" style="margin-bottom: 10px;">
+                <option value="all">All Time</option>
+                <option value="week">Last 7 Days</option>
+                <option value="month">Last 30 Days</option>
+                <option value="year">Last Year</option>
+            </select>
+            <button onclick="fetchExerciseProgress()">Get Progress Chart</button>
+            <pre id="prog-output">Awaiting action...</pre>
         </div>
 
         <div class="panel">
@@ -97,6 +135,55 @@
             <pre id="delete-output">Awaiting action...</pre>
         </div>
 
+        <!-- Workout Programs Section -->
+        <hr style="grid-column: 1 / -1; margin: 20px 0; border: 1px solid #ccc;">
+        <h2 style="grid-column: 1 / -1; text-align: center;">📅 Workout Programs API</h2>
+
+        <div class="panel">
+            <h2>7. Fetch Programs (Read)</h2>
+            <label>User ID (Filter specific & global):</label> 
+            <input type="number" id="prog-fetch-userid" placeholder="e.g. 1">
+            <button onclick="fetchPrograms()">Get Programs</button>
+            <pre id="prog-fetch-output">Awaiting action...</pre>
+        </div>
+
+        <div class="panel">
+            <h2>8. Create a Program (Create)</h2>
+            <form id="prog-create-form" onsubmit="createProgram(event)">
+                <label>Name:</label> <input type="text" id="pc-name" required placeholder="e.g. 4-Week Hypertrophy">
+                <label>Description:</label> <input type="text" id="pc-desc" required placeholder="Build muscle">
+                <label>Created By (User ID):</label> <input type="number" id="pc-createdby" required placeholder="e.g. 1 (Use 0 for Global)">
+                <label>Days (JSON Array of objects):</label>
+                <textarea id="pc-days" rows="3" style="width:100%; border:1px solid #ccc; font-family:monospace; padding:5px; margin-bottom:10px" placeholder='[{"dayNumber":1, "workoutTemplateId":2}]'></textarea>
+                <button type="submit">Create Program</button>
+            </form>
+            <pre id="prog-create-output">Awaiting action...</pre>
+        </div>
+
+        <div class="panel">
+            <h2>9. Update a Program (Update)</h2>
+            <form id="prog-update-form" onsubmit="updateProgram(event)">
+                <label>Program ID to Update:</label> <input type="number" id="pu-id" required>
+                <label>User ID (Must be creator):</label> <input type="number" id="pu-userid" required>
+                <label>New Name:</label> <input type="text" id="pu-name" required>
+                <label>New Description:</label> <input type="text" id="pu-desc" required>
+                <label>Days (JSON):</label>
+                <textarea id="pu-days" rows="3" style="width:100%; border:1px solid #ccc; font-family:monospace; padding:5px; margin-bottom:10px">[]</textarea>
+                <button type="submit" class="btn-warning">Update Program</button>
+            </form>
+            <pre id="prog-update-output">Awaiting action...</pre>
+        </div>
+
+        <div class="panel">
+            <h2>10. Delete a Program (Delete)</h2>
+            <form id="prog-delete-form" onsubmit="deleteProgram(event)">
+                <label>Program ID to Delete:</label> <input type="number" id="pd-id" required>
+                <label>User ID (Must be creator):</label> <input type="number" id="pd-userid" required>
+                <button type="submit" class="btn-danger">Delete Program</button>
+            </form>
+            <pre id="prog-delete-output">Awaiting action...</pre>
+        </div>
+
     </div>
 
     <script>
@@ -111,10 +198,12 @@
 
         async function createUser(event) {
             event.preventDefault();
+            const email = document.getElementById('u-email').value;
+            const password = document.getElementById('u-password').value;
             const payload = {
                 name: document.getElementById('u-name').value,
-                email: document.getElementById('u-email').value,
-                password: document.getElementById('u-password').value,
+                email: email,
+                password: password,
                 age: parseInt(document.getElementById('u-age').value),
                 height: parseFloat(document.getElementById('u-height').value),
                 weight: parseFloat(document.getElementById('u-weight').value)
@@ -124,7 +213,57 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            displayJSON('user-output', await res.json());
+            let data;
+            try {
+                data = await res.json();
+            } catch (err) {
+                // Backend sent plain text error (like email exists)
+                data = { error: "Failed to create: " + res.statusText };
+            }
+            displayJSON('user-output', data);
+
+            // Auto-login upon successful creation
+            if (res.ok && !data.error) {
+                await doLogin(email, password);
+            }
+        }
+
+        async function doLogin(email, password) {
+            const payload = { email, password };
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            
+            let data;
+            try {
+                data = await res.json();
+            } catch (err) {
+                data = { error: "Invalid email or password" };
+            }
+            
+            displayJSON('login-output', data);
+
+            if (res.ok && data.token) {
+                document.getElementById('global-token').value = "Bearer " + data.token;
+                document.getElementById('history-userid').value = data.user.id;
+                document.getElementById('w-userid').value = data.user.id;
+                document.getElementById('prog-userid').value = data.user.id;
+                document.getElementById('prog-fetch-userid').value = data.user.id;
+                document.getElementById('pc-createdby').value = data.user.id;
+                document.getElementById('pu-userid').value = data.user.id;
+                document.getElementById('pd-userid').value = data.user.id;
+                alert("Auth successful! You can now fetch history automatically.");
+            }
+        }
+
+        async function loginUser(event) {
+            event.preventDefault();
+            await doLogin(
+                document.getElementById('l-email').value, 
+                document.getElementById('l-password').value
+            );
         }
 
         async function createWorkout(event) {
@@ -133,30 +272,88 @@
             // Convert comma-separated strings into arrays of numbers
             const repsArray = document.getElementById('w-reps').value.split(',').map(Number);
             const weightArray = document.getElementById('w-weight').value.split(',').map(Number);
+            const numSets = parseInt(document.getElementById('w-sets').value);
+
+            // Build the sets array that Go backend expects
+            const setsData = [];
+            for (let i = 0; i < numSets; i++) {
+                setsData.push({
+                    reps: repsArray[i] || 0,
+                    weight: weightArray[i] || 0
+                });
+            }
 
             const payload = {
                 userId: parseInt(document.getElementById('w-userid').value),
                 name: document.getElementById('w-name').value,
                 exercises: [{
                     exerciseId: document.getElementById('w-exid').value,
-                    sets: parseInt(document.getElementById('w-sets').value),
-                    reps: repsArray,
-                    weight: weightArray
+                    sets: setsData
                 }]
             };
+            const headers = { 'Content-Type': 'application/json' };
+            const token = document.getElementById('global-token').value;
+            if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+
             const res = await fetch('/api/workouts', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: headers,
                 body: JSON.stringify(payload)
             });
-            displayJSON('workout-output', await res.json());
+            
+            let data;
+            try {
+                data = await res.json();
+            } catch (err) {
+                data = { error: "Failed (might be unauthorized): " + res.statusText };
+            }
+            displayJSON('workout-output', data);
         }
 
         async function fetchHistory() {
             const userId = document.getElementById('history-userid').value;
+            const period = document.getElementById('history-period').value;
+            const token = document.getElementById('global-token').value;
+            
             if (!userId) return alert("Please enter a User ID!");
-            const res = await fetch(`/api/users/${userId}/workouts`);
+            
+            const headers = {};
+            if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+
+            const res = await fetch(`/api/users/${userId}/workouts?period=${period}`, { headers });
+            
+            if (res.status === 401) {
+                document.getElementById('history-output').textContent = "401 Unauthorized. Please enter a valid Auth Token above.";
+                return;
+            }
             displayJSON('history-output', await res.json());
+        }
+
+        async function fetchExerciseProgress() {
+            const userId = document.getElementById('prog-userid').value;
+            const exId = document.getElementById('prog-exid').value;
+            const period = document.getElementById('prog-period').value;
+            const token = document.getElementById('global-token').value;
+            
+            if (!userId || !exId) return alert("Please enter a User ID and Exercise ID!");
+            
+            const headers = {};
+            if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+
+            const res = await fetch(`/api/users/${userId}/exercises/${exId}/progress?period=${period}`, { headers });
+            
+            if (res.status === 401) {
+                document.getElementById('prog-output').textContent = "401 Unauthorized. Check your Auth Token.";
+                return;
+            }
+            
+            let data;
+            try {
+                data = await res.json();
+            } catch(e) {
+                data = { error: "Failed to fetch: " + res.statusText };
+            }
+            displayJSON('prog-output', data);
         }
 
         async function updateWorkout(event) {
@@ -179,26 +376,149 @@
                 return;
             }
             
+            const headers = { 'Content-Type': 'application/json' };
+            const token = document.getElementById('global-token').value;
+            if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+            
             const res = await fetch(`/api/workouts/${workoutId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: headers,
                 body: JSON.stringify(payload)
             });
-            displayJSON('update-output', await res.json());
+            
+            let data;
+            try {
+                data = await res.json();
+            } catch (err) {
+                data = { error: "Failed to update: " + res.statusText };
+            }
+            displayJSON('update-output', data);
         }
 
         async function deleteWorkout(event) {
             event.preventDefault();
             const workoutId = document.getElementById('del-workoutid').value;
             
+            const headers = {};
+            const token = document.getElementById('global-token').value;
+            if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+
             const res = await fetch(`/api/workouts/${workoutId}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: headers
             });
 
             if (res.status === 204) {
                 document.getElementById('delete-output').textContent = "Success! Workout " + workoutId + " has been deleted (204 No Content).";
             } else {
-                document.getElementById('delete-output').textContent = "Failed to delete workout. Check if ID exists.";
+                try {
+                    const data = await res.json();
+                    document.getElementById('delete-output').textContent = "Error: " + JSON.stringify(data);
+                } catch(err) {
+                    document.getElementById('delete-output').textContent = "Failed to delete workout. Check if ID exists or if you are logged in. Status: " + res.status;
+                }
+            }
+        }
+
+        // --- PROGRAMS FUNCTIONS ---
+
+        async function fetchPrograms() {
+            const userId = document.getElementById('prog-fetch-userid').value;
+            const res = await fetch(`/api/programs?userId=${userId}`);
+            displayJSON('prog-fetch-output', await res.json());
+        }
+
+        async function createProgram(event) {
+            event.preventDefault();
+            let daysArr = [];
+            try {
+                const daysText = document.getElementById('pc-days').value.trim();
+                if (daysText) daysArr = JSON.parse(daysText);
+            } catch (e) {
+                alert("Invalid JSON format in Days field!");
+                return;
+            }
+
+            const payload = {
+                name: document.getElementById('pc-name').value,
+                description: document.getElementById('pc-desc').value,
+                createdBy: parseInt(document.getElementById('pc-createdby').value),
+                days: daysArr
+            };
+
+            const headers = { 'Content-Type': 'application/json' };
+            const token = document.getElementById('global-token').value;
+            if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+
+            const res = await fetch('/api/programs', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(payload)
+            });
+
+            let data;
+            try { data = await res.json(); } catch(e) { data = { error: res.statusText }; }
+            displayJSON('prog-create-output', data);
+        }
+
+        async function updateProgram(event) {
+            event.preventDefault();
+            const progId = document.getElementById('pu-id').value;
+            const userId = document.getElementById('pu-userid').value;
+            
+            let daysArr = [];
+            try {
+                const daysText = document.getElementById('pu-days').value.trim();
+                if (daysText) daysArr = JSON.parse(daysText);
+            } catch (e) {
+                alert("Invalid JSON format in Days field!");
+                return;
+            }
+
+            const payload = {
+                name: document.getElementById('pu-name').value,
+                description: document.getElementById('pu-desc').value,
+                days: daysArr
+            };
+
+            const headers = { 'Content-Type': 'application/json' };
+            const token = document.getElementById('global-token').value;
+            if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+
+            const res = await fetch(`/api/programs/${progId}?userId=${userId}`, {
+                method: 'PUT',
+                headers: headers,
+                body: JSON.stringify(payload)
+            });
+
+            let data;
+            try { data = await res.json(); } catch(e) { data = { error: res.statusText }; }
+            displayJSON('prog-update-output', data);
+        }
+
+        async function deleteProgram(event) {
+            event.preventDefault();
+            const progId = document.getElementById('pd-id').value;
+            const userId = document.getElementById('pd-userid').value;
+
+            const headers = {};
+            const token = document.getElementById('global-token').value;
+            if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+
+            const res = await fetch(`/api/programs/${progId}?userId=${userId}`, {
+                method: 'DELETE',
+                headers: headers
+            });
+
+            if (res.status === 204) {
+                document.getElementById('prog-delete-output').textContent = "Success! Program " + progId + " deleted successfully.";
+            } else {
+                try {
+                    const data = await res.json();
+                    document.getElementById('prog-delete-output').textContent = "Error: " + JSON.stringify(data);
+                } catch(e) {
+                    document.getElementById('prog-delete-output').textContent = "Failed. Status: " + res.status;
+                }
             }
         }
     </script>
