@@ -206,6 +206,8 @@ func AdvanceProgramDay(w http.ResponseWriter, r *http.Request) {
 		progress.IsActive = false
 		database.DB.Save(&progress)
 
+		awardPoints(progress.UserID, 200, "Full Program Completed")
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"message": "Program completed! Congratulations!"})
 		return
@@ -213,6 +215,8 @@ func AdvanceProgramDay(w http.ResponseWriter, r *http.Request) {
 
 	progress.CurrentDay++
 	database.DB.Save(&progress)
+
+	awardPoints(progress.UserID, 20, "Program Day Completed")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(progress)

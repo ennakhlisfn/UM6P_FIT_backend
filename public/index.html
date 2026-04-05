@@ -184,6 +184,35 @@
             <pre id="prog-delete-output">Awaiting action...</pre>
         </div>
 
+        <!-- Leaderboard Section -->
+        <hr style="grid-column: 1 / -1; margin: 20px 0; border: 1px solid #ccc;">
+        <h2 style="grid-column: 1 / -1; text-align: center;">🏆 Global Leaderboard API</h2>
+
+        <div class="panel" style="grid-column: 1 / -1;">
+            <h2>11. View Leaderboard (Gamification)</h2>
+            <label>Time Period:</label>
+            <select id="lb-period" style="margin-bottom: 10px;">
+                <option value="weekly">Weekly (Last 7 Days)</option>
+                <option value="monthly">Monthly (Last 30 Days)</option>
+                <option value="yearly">Yearly (Last 365 Days)</option>
+                <option value="alltime">All-Time (Normalized XP/Day)</option>
+            </select>
+            <button onclick="fetchLeaderboard()" class="btn-warning">Get Rankings</button>
+
+            <table id="lb-table" style="width: 100%; margin-top: 15px; border-collapse: collapse; text-align: left; display: none;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #ccc;">
+                        <th style="padding: 10px;">Rank</th>
+                        <th style="padding: 10px;">User Name</th>
+                        <th style="padding: 10px;">Total XP Earned</th>
+                        <th style="padding: 10px;">Norm. Score</th>
+                    </tr>
+                </thead>
+                <tbody id="lb-tbody"></tbody>
+            </table>
+            <pre id="lb-output" style="margin-top: 15px;">Awaiting action...</pre>
+        </div>
+
     </div>
 
     <script>
@@ -520,6 +549,51 @@
                     document.getElementById('prog-delete-output').textContent = "Failed. Status: " + res.status;
                 }
             }
+        }
+
+        // --- LEADERBOARD FUNCTIONS ---
+
+        async function fetchLeaderboard() {
+            const period = document.getElementById('lb-period').value;
+            const res = await fetch(`/api/leaderboard?period=${period}`);
+            
+            let data;
+            try { 
+                data = await res.json(); 
+            } catch(e) { 
+                data = { error: res.statusText }; 
+                document.getElementById('lb-table').style.display = 'none';
+                document.getElementById('lb-output').style.display = 'block';
+                return displayJSON('lb-output', data); 
+            }
+
+            document.getElementById('lb-output').style.display = 'none';
+            const table = document.getElementById('lb-table');
+            const tbody = document.getElementById('lb-tbody');
+            tbody.innerHTML = '';
+            table.style.display = 'table';
+
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="padding: 10px; text-align: center;">No data found for this period.</td></tr>';
+                return;
+            }
+
+            data.forEach((user, index) => {
+                let rankStr = `${index + 1}`;
+                if (index === 0) rankStr = `🥇 1`;
+                else if (index === 1) rankStr = `🥈 2`;
+                else if (index === 2) rankStr = `🥉 3`;
+
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #eee';
+                tr.innerHTML = `
+                    <td style="padding: 10px; font-weight: bold;">${rankStr}</td>
+                    <td style="padding: 10px;">${user.name}</td>
+                    <td style="padding: 10px; color: #007bff; font-weight: bold;">${user.totalPoints} XP</td>
+                    <td style="padding: 10px; color: #dc3545;">${user.score.toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
         }
     </script>
 

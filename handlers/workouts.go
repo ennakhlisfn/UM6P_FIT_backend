@@ -33,6 +33,9 @@ func CreateWorkout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Trigger gamification algorithms
+	processWorkoutGamification(workout)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(workout)

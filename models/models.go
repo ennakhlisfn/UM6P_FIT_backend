@@ -5,6 +5,23 @@ import (
 	"github.com/lib/pq"
 )
 
+type UserPointsLog struct {
+	ID       uint      `gorm:"primaryKey" json:"id"`
+	UserID   uint      `gorm:"index:idx_user_earned,priority:1" json:"userId"`
+	Points   int       `json:"points"`
+	Reason   string    `json:"reason"`
+	EarnedAt time.Time `gorm:"index:idx_user_earned,priority:2;index:idx_earned_at" json:"earnedAt"`
+}
+
+type PersonalRecord struct {
+	ID         uint      `gorm:"primaryKey" json:"id"`
+	UserID     uint      `gorm:"uniqueIndex:idx_user_ex,priority:1" json:"userId"`
+	ExerciseID string    `gorm:"uniqueIndex:idx_user_ex,priority:2" json:"exerciseId"`
+	Weight     float64   `json:"weight"`
+	Volume     float64   `json:"volume"`
+	AchievedAt time.Time `json:"achievedAt"`
+}
+
 type UserProgramProgress struct {
 	ID         uint           `gorm:"primaryKey" json:"id"`
 	UserID     uint           `json:"userId"`
@@ -32,7 +49,8 @@ type ProgramDay struct {
 type LeaderboardEntry struct {
 	ID          uint    `json:"id"`
 	Name        string  `json:"name"`
-	TotalVolume float64 `json:"totalVolume"`
+	TotalPoints int     `json:"totalPoints"`
+	Score       float64 `json:"score"`
 }
 
 type Workout struct {

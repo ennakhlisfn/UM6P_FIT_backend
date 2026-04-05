@@ -36,6 +36,8 @@ func InitDB() {
 		&models.WorkoutProgram{},
 		&models.ProgramDay{},
 		&models.UserProgramProgress{},
+		&models.UserPointsLog{},
+		&models.PersonalRecord{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to auto-migrate database schema: %v", err)
