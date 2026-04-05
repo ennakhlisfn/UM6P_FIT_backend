@@ -1,96 +1,58 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
+
+	"um6p_fit_backend/database"
+	"um6p_fit_backend/handlers"
+	"um6p_fit_backend/middleware"
 )
 
-var db *gorm.DB
-
-func InitDB() {
-	dsn := "host=localhost user=sennakhl password=postgres dbname=um6p_fit port=5432 sslmode=disable TimeZone=UTC"
-	var err error
-	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		log.Fatalf("Failed to connect to PostgreSQL: %v", err)
-	}
-
-	fmt.Println("Connected to PostgreSQL successfully!")
-
-	err = db.AutoMigrate(&User{}, &Exercise{}, &Workout{}, &Set{}, &WorkoutExercise{}, &WorkoutTemplate{}, &TemplateExercise{}, &WorkoutProgram{}, &ProgramDay{}, &UserProgramProgress{})
-	if err != nil {
-		log.Fatalf("Failed to auto-migrate database schema: %v", err)
-	}
-}
-
-func SeedDBIfEmpty(filepath string) {
-	var count int64
-	db.Model(&Exercise{}).Count(&count)
-
-	if count == 0 {
-		fmt.Println("Database is empty. Seeding from JSON file...")
-
-		jsonFile, err := os.Open(filepath)
-		if err != nil {
-			log.Fatalf("Failed to open seed file: %v", err)
-		}
-		defer jsonFile.Close()
-
-		byteValue, _ := ioutil.ReadAll(jsonFile)
-
-		var exercises []Exercise
-		err = json.Unmarshal(byteValue, &exercises)
-		if err != nil {
-			log.Fatalf("Failed to parse seed JSON: %v", err)
-		}
-
-		result := db.CreateInBatches(exercises, 100)
-		if result.Error != nil {
-			log.Fatalf("Failed to seed database: %v", result.Error)
-		}
-
-		fmt.Printf("Successfully seeded %d exercises into PostgreSQL!\n", result.RowsAffected)
-	} else {
-		fmt.Printf("Database already contains %d exercises. Skipping seed step.\n", count)
-	}
-}
 func main() {
-	InitDB()
-	SeedDBIfEmpty("exercises.json")
+	// Initialize Database
+	database.InitDB()
+	seedFile := "exercises_seed.json"
+	database.SeedDBIfEmpty(seedFile)
 
-	// Serve static files from the 'public' directory
-	http.Handle("/", http.FileServer(http.Dir("./public")))
+	// User Routes
+	http.HandleFunc("POST /api/users", handlers.CreateUser)
+	http.HandleFunc("POST /api/login", handlers.LoginUser)
 
-	http.HandleFunc("/api/exercises", GetExercises)
-	http.HandleFunc("/api/workouts", AuthMiddleware(CreateWorkout))
-	http.HandleFunc("/api/users", CreateUser)
-	http.HandleFunc("/api/users/{id}/workouts", AuthMiddleware(GetUserWorkouts))
-	http.HandleFunc("DELETE /api/workouts/{id}", AuthMiddleware(DeleteWorkout))
-	http.HandleFunc("PUT /api/workouts/{id}", AuthMiddleware(UpdateWorkout))
-	http.HandleFunc("GET /api/users/{id}/exercises/{exId}/progress", AuthMiddleware(GetExerciseProgress))
-	http.HandleFunc("GET /api/workout-templates", GetWorkoutTemplates)
-	http.HandleFunc("POST /api/workout-templates", AuthMiddleware(CreateWorkoutTemplate))
-	http.HandleFunc("PUT /api/workout-templates/{id}", AuthMiddleware(UpdateWorkoutTemplate))
-	http.HandleFunc("DELETE /api/workout-templates/{id}", AuthMiddleware(DeleteWorkoutTemplate))
-	http.HandleFunc("POST /api/login", LoginUser)
-	http.HandleFunc("GET /api/leaderboard", GetLeaderboard)
-	http.HandleFunc("POST /api/programs", AuthMiddleware(CreateWorkoutProgram))
-	http.HandleFunc("GET /api/programs", GetWorkoutPrograms)
-	http.HandleFunc("PUT /api/programs/{id}", AuthMiddleware(UpdateWorkoutProgram))
-	http.HandleFunc("DELETE /api/programs/{id}", AuthMiddleware(DeleteWorkoutProgram))
-	http.HandleFunc("POST /api/programs/{id}/start", AuthMiddleware(StartProgram))
-	http.HandleFunc("POST /api/programs/advance", AuthMiddleware(AdvanceProgramDay))
-	http.HandleFunc("GET /api/users/{id}/programs-history", GetProgramHistory)
+	// Exercise Routes
+	http.HandleFunc("GET /api/exercises", handlers.GetExercises)
 
-	port := ":8080"
-	fmt.Printf("Starting server on http://localhost%s\n", port)
-	if err := http.ListenAndServe(port, nil); err != nil {
+	// Workout Routes
+	http.HandleFunc("POST /api/workouts", middleware.AuthMiddleware(handlers.CreateWorkout))
+	http.HandleFunc("GET /api/users/{id}/workouts", middleware.AuthMiddleware(handlers.GetUserWorkouts))
+	http.HandleFunc("PUT /api/workouts/{id}", middleware.AuthMiddleware(handlers.UpdateWorkout))
+	http.HandleFunc("DELETE /api/workouts/{id}", middleware.AuthMiddleware(handlers.DeleteWorkout))
+	http.HandleFunc("GET /api/users/{id}/exercises/{exId}/progress", middleware.AuthMiddleware(handlers.GetExerciseProgress))
+
+	// Template Routes
+	http.HandleFunc("POST /api/workout-templates", middleware.AuthMiddleware(handlers.CreateWorkoutTemplate))
+	http.HandleFunc("GET /api/workout-templates", handlers.GetWorkoutTemplates)
+	http.HandleFunc("PUT /api/workout-templates/{id}", middleware.AuthMiddleware(handlers.UpdateWorkoutTemplate))
+	http.HandleFunc("DELETE /api/workout-templates/{id}", middleware.AuthMiddleware(handlers.DeleteWorkoutTemplate))
+
+	// Leaderboard Routes
+	http.HandleFunc("GET /api/leaderboard", handlers.GetLeaderboard)
+
+	// Program Routes
+	http.HandleFunc("POST /api/programs", middleware.AuthMiddleware(handlers.CreateWorkoutProgram))
+	http.HandleFunc("GET /api/programs", handlers.GetWorkoutPrograms)
+	http.HandleFunc("PUT /api/programs/{id}", middleware.AuthMiddleware(handlers.UpdateWorkoutProgram))
+	http.HandleFunc("DELETE /api/programs/{id}", middleware.AuthMiddleware(handlers.DeleteWorkoutProgram))
+	http.HandleFunc("POST /api/programs/{id}/start", middleware.AuthMiddleware(handlers.StartProgram))
+	http.HandleFunc("POST /api/programs/advance", middleware.AuthMiddleware(handlers.AdvanceProgramDay))
+	http.HandleFunc("GET /api/users/{id}/programs-history", handlers.GetProgramHistory)
+
+	// Static Web Frontend Serving
+	fs := http.FileServer(http.Dir("./public"))
+	http.Handle("/", fs)
+
+	log.Println("Starting server on http://localhost:8080")
+	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }
