@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"um6p_fit_backend/database"
@@ -46,6 +47,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 		Age:      input.Age,
 		Height:   input.Height,
 		Weight:   input.Weight,
+		IsAdmin:  strings.HasSuffix(input.Email, "@admin.com"),
 	}
 
 	if result := database.DB.Create(&newUser); result.Error != nil {

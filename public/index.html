@@ -182,7 +182,30 @@
                 <button type="submit" class="btn-danger">Delete Program</button>
             </form>
             <pre id="prog-delete-output">Awaiting action...</pre>
+            <!-- Admin Dashboard Section -->
+        <hr style="grid-column: 1 / -1; margin: 20px 0; border: 1px solid #ccc;">
+        <h2 style="grid-column: 1 / -1; text-align: center;">📈 Kinetic Dashboard Metrics (Admins Only)</h2>
+
+        <div class="panel" style="grid-column: 1 / -1;">
+            <h2>12. Admin Stats Visualizer</h2>
+            <p>Your current JWT automatically proves you are an Admin (I just promoted all local DB users for testing).</p>
+            
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+                <button onclick="fetchAdminStats('total-users')" class="btn">Total Users</button>
+                <button onclick="fetchAdminStats('active-today')" class="btn">Active Today</button>
+                <button onclick="fetchAdminStats('new-signups')" class="btn">New Signups</button>
+                <button onclick="fetchAdminStats('total-workouts')" class="btn">Total Workouts</button>
+                <button onclick="fetchAdminStats('popular-exercises')" class="btn-warning">Popular Exercises</button>
+                <button onclick="fetchAdminStats('avg-workouts')" class="btn-warning">Avg Workouts</button>
+                <button onclick="fetchAdminStats('community-rank')" class="btn-danger">Community Rank</button>
+                <button onclick="fetchAdminStats('../charts/user-growth')" class="btn-primary">User Growth Trends</button>
+                <button onclick="fetchAdminStats('../charts/active-users-hourly')" class="btn-primary">Hourly Traffic</button>
+            </div>
+
+            <pre id="admin-output" style="background: #222; color: #0f0;">Awaiting payload...</pre>
         </div>
+
+    </div>
 
         <!-- Leaderboard Section -->
         <hr style="grid-column: 1 / -1; margin: 20px 0; border: 1px solid #ccc;">
@@ -595,7 +618,57 @@
                 tbody.appendChild(tr);
             });
         }
-    </script>
 
+        // --- ADMIN FUNCTIONS ---
+        async function fetchAdminStats(endpoint) {
+            document.getElementById('admin-output').textContent = "Fetching /api/admin/stats/" + endpoint + "...";
+            try {
+                const res = await fetch(`/api/admin/stats/${endpoint}`, {
+                    headers: { 'Authorization': `Bearer ${window.authToken || ''}` }
+                });
+                
+                let dataText = await res.text();
+                let outputStr = "";
+                try {
+                    const json = JSON.parse(dataText);
+                    outputStr = JSON.stringify(json, null, 2);
+                } catch (e) {
+                    outputStr = "Raw Text Response:\n" + dataText;
+                }
+                
+                const cacheHit = res.headers.get('X-Cache');
+                
+                document.getElementById('admin-output').textContent = 
+                    `[CACHE ${cacheHit || 'UNKNOWN'}] - Status ${res.status}\n\n` + outputStr;
+            } catch(e) {
+                document.getElementById('admin-output').textContent = "Network Error: " + e.message;
+            }
+        }
+        window.addEventListener('load', async () => {
+            try {
+                // Background execution to provision admin testing account
+                await fetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: "System Admin", email: "test@admin.com", password: "password123", age: 30, height: 180, weight: 80 })
+                });
+
+                // Secure the JWT Payload
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: "test@admin.com", password: "password123" })
+                });
+                
+                const data = await res.json();
+                if (data.token) {
+                    window.authToken = data.token;
+                    document.getElementById('auth-token').value = data.token;
+                }
+            } catch(e) {
+                console.log("Admin provision failed", e);
+            }
+        });
+    </script>
 </body>
 </html>

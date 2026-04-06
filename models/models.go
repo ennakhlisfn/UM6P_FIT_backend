@@ -98,6 +98,7 @@ type User struct {
 	Age       int       `json:"age"`
 	Height    float64   `json:"height"`
 	Weight    float64   `json:"weight"`
+	IsAdmin   bool      `json:"isAdmin"`
 	CreatedAt time.Time `json:"createdAt"`
 	Workouts  []Workout `json:"workouts,omitempty"`
 }

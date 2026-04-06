@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -32,6 +33,19 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			http.Error(w, "Unauthorized: invalid token claims", http.StatusUnauthorized)
+			return
+		}
+
+		userIDFloat, ok := claims["userId"].(float64)
+		if !ok {
+			http.Error(w, "Unauthorized: no userId in token", http.StatusUnauthorized)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), "userId", uint(userIDFloat))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

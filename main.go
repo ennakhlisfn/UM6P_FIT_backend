@@ -47,6 +47,18 @@ func main() {
 	http.HandleFunc("POST /api/programs/advance", middleware.AuthMiddleware(handlers.AdvanceProgramDay))
 	http.HandleFunc("GET /api/users/{id}/programs-history", handlers.GetProgramHistory)
 
+	// Admin / Dashboard Routes
+	http.HandleFunc("GET /api/admin/stats/total-users", middleware.AdminMiddleware(handlers.AdminGetTotalUsers))
+	http.HandleFunc("GET /api/admin/stats/active-today", middleware.AdminMiddleware(handlers.AdminGetActiveToday))
+	http.HandleFunc("GET /api/admin/stats/new-signups", middleware.AdminMiddleware(handlers.AdminGetNewSignups))
+	http.HandleFunc("GET /api/admin/stats/total-workouts", middleware.AdminMiddleware(handlers.AdminGetTotalWorkouts))
+	http.HandleFunc("GET /api/admin/charts/user-growth", middleware.AdminMiddleware(handlers.AdminGetUserGrowth))
+	http.HandleFunc("GET /api/admin/charts/active-users-hourly", middleware.AdminMiddleware(handlers.AdminGetActiveUsersHourly))
+	http.HandleFunc("GET /api/admin/stats/popular-exercises", middleware.AdminMiddleware(handlers.AdminGetPopularExercises))
+	http.HandleFunc("GET /api/admin/stats/avg-workouts", middleware.AdminMiddleware(handlers.AdminGetAvgWorkouts))
+	http.HandleFunc("GET /api/admin/stats/community-rank", middleware.AdminMiddleware(handlers.AdminGetCommunityRank))
+	http.HandleFunc("GET /api/admin/live-classes/active", middleware.AdminMiddleware(handlers.AdminGetLiveClasses))
+
 	// Static Web Frontend Serving
 	fs := http.FileServer(http.Dir("./public"))
 	http.Handle("/", fs)
