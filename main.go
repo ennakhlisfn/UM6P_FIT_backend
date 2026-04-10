@@ -6,6 +6,7 @@ import (
 
 	"um6p_fit_backend/database"
 	"um6p_fit_backend/handlers"
+	"um6p_fit_backend/jobs"
 	"um6p_fit_backend/middleware"
 )
 
@@ -14,6 +15,9 @@ func main() {
 	database.InitDB()
 	seedFile := "exercises_seed.json"
 	database.SeedDBIfEmpty(seedFile)
+
+	// Boot background scheduling jobs
+	jobs.StartCronJobs()
 
 	// User Routes
 	http.HandleFunc("POST /api/users", handlers.CreateUser)
@@ -58,6 +62,11 @@ func main() {
 	http.HandleFunc("GET /api/admin/stats/avg-workouts", middleware.AdminMiddleware(handlers.AdminGetAvgWorkouts))
 	http.HandleFunc("GET /api/admin/stats/community-rank", middleware.AdminMiddleware(handlers.AdminGetCommunityRank))
 	http.HandleFunc("GET /api/admin/live-classes/active", middleware.AdminMiddleware(handlers.AdminGetLiveClasses))
+
+	// User Profile & Notification Routes
+	http.HandleFunc("PUT /api/users/{id}/weight", middleware.AuthMiddleware(handlers.UpdateUserWeight))
+	http.HandleFunc("GET /api/users/{id}/notifications", middleware.AuthMiddleware(handlers.GetUserNotifications))
+	http.HandleFunc("PUT /api/notifications/{id}/read", middleware.AuthMiddleware(handlers.MarkNotificationRead))
 
 	// Static Web Frontend Serving
 	fs := http.FileServer(http.Dir("./public"))

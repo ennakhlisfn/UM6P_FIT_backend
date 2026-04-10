@@ -117,3 +117,18 @@ type TemplateExercise struct {
 	ExerciseID string `json:"exerciseId"`
 	TargetSets int    `json:"targetSets"`
 }
+
+type Notification struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"index" json:"userId"`
+	Message   string    `json:"message"`
+	IsRead    bool      `json:"isRead"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+type WeightLog struct {
+	ID       uint      `gorm:"primaryKey" json:"id"`
+	UserID   uint      `gorm:"index" json:"userId"`
+	Weight   float64   `json:"weight"`
+	LoggedAt time.Time `json:"loggedAt"`
+}

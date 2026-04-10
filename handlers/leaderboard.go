@@ -8,6 +8,8 @@ import (
 
 	"um6p_fit_backend/database"
 	"um6p_fit_backend/models"
+
+	"gorm.io/gorm"
 )
 
 func GetLeaderboard(w http.ResponseWriter, r *http.Request) {
@@ -23,10 +25,6 @@ func GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 
 	var leaderboard []models.LeaderboardEntry
 
-	query := database.DB.Table("users").
-		Select("users.id, users.name, COALESCE(SUM(user_points_logs.points), 0) as total_points, 0.0 as score").
-		Joins("LEFT JOIN user_points_logs ON user_points_logs.user_id = users.id")
-
 	now := time.Now()
 	var startDate time.Time
 
@@ -39,8 +37,16 @@ func GetLeaderboard(w http.ResponseWriter, r *http.Request) {
 		startDate = now.AddDate(-1, 0, 0)
 	}
 
+	var query *gorm.DB
+
 	if !startDate.IsZero() {
-		query = query.Where("user_points_logs.earned_at >= ?", startDate)
+		query = database.DB.Table("users").
+			Select("users.id, users.name, COALESCE(SUM(user_points_logs.points), 0) as total_points, 0.0 as score").
+			Joins("LEFT JOIN user_points_logs ON user_points_logs.user_id = users.id AND user_points_logs.earned_at >= ?", startDate)
+	} else {
+		query = database.DB.Table("users").
+			Select("users.id, users.name, COALESCE(SUM(user_points_logs.points), 0) as total_points, 0.0 as score").
+			Joins("LEFT JOIN user_points_logs ON user_points_logs.user_id = users.id")
 	}
 
 	if period != "alltime" {

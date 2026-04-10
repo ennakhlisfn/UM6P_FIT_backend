@@ -19,6 +19,13 @@ var GlobalCache = &TTLMemoryCache{
 	items: make(map[string]CacheItem),
 }
 
+// Clear empties the entire cache in-place (used primarily for test resets)
+func (c *TTLMemoryCache) Clear() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.items = make(map[string]CacheItem)
+}
+
 // Set adds an item to the cache with a specified TTL in seconds.
 func (c *TTLMemoryCache) Set(key string, value interface{}, ttlSeconds int64) {
 	c.mutex.Lock()

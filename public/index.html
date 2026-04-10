@@ -236,6 +236,28 @@
             <pre id="lb-output" style="margin-top: 15px;">Awaiting action...</pre>
         </div>
 
+        <!-- Inbox / Profile Section -->
+        <hr style="grid-column: 1 / -1; margin: 20px 0; border: 1px solid #ccc;">
+        <h2 style="grid-column: 1 / -1; text-align: center;">📨 User Profile & Notification Inbox</h2>
+
+        <div class="panel">
+            <h2>13. Update Weight (Logs Tracker)</h2>
+            <form id="weight-form" onsubmit="updateWeight(event)">
+                <label>User ID:</label> <input type="number" id="wt-userid" required placeholder="e.g. 1">
+                <label>New Weight (kg):</label> <input type="number" step="0.1" id="wt-value" required placeholder="e.g. 75.5">
+                <button type="submit" class="btn-warning">Push Weight to DB</button>
+            </form>
+            <pre id="weight-output">Awaiting action...</pre>
+        </div>
+
+        <div class="panel" style="border: 2px solid #dc3545;">
+            <h2>🔔 14. Notification Inbox</h2>
+            <label>User ID:</label> <input type="number" id="notif-userid" required placeholder="e.g. 1">
+            <button onclick="fetchNotifications()" class="btn-danger">Check Inbox</button>
+            <div id="notif-list" style="margin-top: 15px;"></div>
+            <pre id="notif-output" style="margin-top: 15px; display: none;"></pre>
+        </div>
+
     </div>
 
     <script>
@@ -644,6 +666,88 @@
                 document.getElementById('admin-output').textContent = "Network Error: " + e.message;
             }
         }
+
+        // --- INBOX FUNCTIONS ---
+        async function updateWeight(event) {
+            event.preventDefault();
+            const userId = document.getElementById('wt-userid').value;
+            const weightVal = parseFloat(document.getElementById('wt-value').value);
+
+            const headers = { 'Content-Type': 'application/json' };
+            const token = document.getElementById('global-token').value;
+            if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+
+            const res = await fetch(`/api/users/${userId}/weight`, {
+                method: 'PUT',
+                headers: headers,
+                body: JSON.stringify({ weight: weightVal })
+            });
+
+            let data;
+            try { data = await res.json(); } catch(e) { data = { error: res.statusText }; }
+            displayJSON('weight-output', data);
+        }
+
+        async function fetchNotifications() {
+            const userId = document.getElementById('notif-userid').value;
+            if (!userId) return alert("Enter User ID to check inbox");
+
+            const headers = {};
+            const token = document.getElementById('global-token').value;
+            if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+
+            const res = await fetch(`/api/users/${userId}/notifications`, { headers });
+            
+            let data;
+            try { data = await res.json(); } catch(e) { 
+                document.getElementById('notif-list').innerHTML = '';
+                document.getElementById('notif-output').style.display = 'block';
+                return displayJSON('notif-output', { error: "Parse Error or Unauthorized" }); 
+            }
+
+            document.getElementById('notif-output').style.display = 'none';
+            const listDiv = document.getElementById('notif-list');
+            listDiv.innerHTML = ''; // clear
+
+            if (!data || data.length === 0) {
+                listDiv.innerHTML = '<p>📭 Inbox is completely empty.</p>';
+                return;
+            }
+
+            data.forEach(notif => {
+                const div = document.createElement('div');
+                div.style.padding = '10px';
+                div.style.marginBottom = '10px';
+                div.style.borderRadius = '5px';
+                div.style.borderLeft = notif.isRead ? '5px solid #ccc' : '5px solid #dc3545';
+                div.style.backgroundColor = notif.isRead ? '#f8f9fa' : '#ffeeba';
+
+                div.innerHTML = `
+                    <p style="margin:0 0 5px 0;"><strong>Message:</strong> ${notif.message}</p>
+                    <small style="color:#666;">Date: ${new Date(notif.createdAt).toLocaleString()} | Status: ${notif.isRead ? 'Read' : '<b>UNREAD</b>'}</small>
+                    ${!notif.isRead ? `<br><button onclick="markAsRead(${notif.id})" style="margin-top:5px; padding: 5px; background: #28a745; font-size:12px; cursor: pointer; border: none; font-weight: bold; color: white;">Mark as Read</button>` : ''}
+                `;
+                listDiv.appendChild(div);
+            });
+        }
+
+        async function markAsRead(notifId) {
+            const headers = {};
+            const token = document.getElementById('global-token').value;
+            if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+
+            const res = await fetch(`/api/notifications/${notifId}/read`, {
+                method: 'PUT',
+                headers: headers
+            });
+
+            if (res.ok) {
+                fetchNotifications(); // UI refresh
+            } else {
+                alert("Failed to mark logic loop. Unauthorized JWT context?");
+            }
+        }
+
         window.addEventListener('load', async () => {
             try {
                 // Background execution to provision admin testing account
